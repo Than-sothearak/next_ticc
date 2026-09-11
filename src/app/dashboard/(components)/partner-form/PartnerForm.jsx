@@ -1,173 +1,84 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { BiTrash } from "react-icons/bi";
-import { File, X } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import ChooseImageFiles from "../ChooseImageFiles";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { SaveButton } from "../button/SaveButton";
+import TextEditor from "../TextEditor";
 
-export const PartnerImageForm = ({ partnerData }) => {
-  const router = useRouter();
+export const PartnerForm = ({ partnerData }) => {
   const [isPending, startTransition] = useTransition();
-  const [files, setFiles] = useState([]);
-  const [isUpload, setIsUpload] = useState(false);
   const [isEditing, setIsEditing] = useState(!partnerData);
+  const [partnerId, setPartnerId] = useState(partnerData?._id);
+  const [description, setDescription] = useState(partnerData?.description || "");
 
-  const [formData, setFormData] = useState({
-    logos: partnerData?.logos || [],
-    removedImages: [],
-  });
-
-  const handleRemoveImage = (index) => {
-    setFormData((prev) => {
-      const removed = prev.logos[index];
-      return {
-        ...prev,
-        logos: prev.logos.filter((_, i) => i !== index),
-        removedImages: [...prev.removedImages, removed],
-      };
-    });
-  };
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const formDataToSend = new FormData();
-    // append removed images
     startTransition(async () => {
-      formDataToSend.append(
-        "removedImages",
-        JSON.stringify(formData.removedImages || []),
-      );
-      let method = "POST";
-      if (partnerData._id) {
-        method = "PUT";
-        formDataToSend.append("_id", partnerData._id);
-      }
-      // append files from state
-      files.forEach((fileObj) => {
-        formDataToSend.append("images", fileObj.file);
-      });
-      for (const [key, value] of formDataToSend.entries()) {
-      }
+      const method = partnerId ? "PUT" : "POST";
+
       try {
         const res = await fetch("/api/partner", {
-          method: method,
-          body: formDataToSend,
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            _id: partnerId,
+            description,
+          }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message);
-        setFormData((prev) => ({
-          ...prev,
-          logos: data.partner?.logos || [],
-          removedImages: [],
-        }));
-        alert(data.message);
-        setIsUpload(false);
-        setIsEditing(false);
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.message);
 
-        setFiles([]);
-        router.push("/dashboard/partners");
+        setPartnerId(result.partner?._id || partnerId);
+        setDescription(result.partner?.description || description);
+        setIsEditing(false);
+        alert(result.message);
       } catch (err) {
         console.error(err);
       }
     });
   };
+
   const handleCancel = () => {
-    setFormData((prev) => ({
-      ...prev,
-      logos: partnerData?.logos || [],
-      removedImages: [],
-    }));
-    setIsUpload(false);
+    setDescription(partnerData?.description || "");
     setIsEditing(false);
   };
+
   return (
-    <form onSubmit={handleSubmit} className="p-4 relative space-y-6 w-full">
-      <Card className="">
-        <CardHeader className="flex flex-row justify-between items-center ">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsUpload(true)}
-              type="button"
-            >
-              Choose files
-            </Button>
-
-            <SaveButton
-              isEditing={isEditing}
-              isPending={isPending}
-              onEdit={() => setIsEditing(true)}
-              onCancel={handleCancel}
-            />
+    <form onSubmit={handleSubmit} className="md:w-[580px] w-full m-auto">
+      <Card>
+        <CardHeader className="flex flex-row justify-between items-start">
+          <div className="space-y-2">
+            <CardTitle>Partner description</CardTitle>
+            <CardDescription>
+              Update the description shown in the partner section.
+            </CardDescription>
           </div>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <input
-            type="hidden"
-            name="removedImages"
-            value={JSON.stringify(formData.removedImages)}
+          <SaveButton
+            isEditing={isEditing}
+            isPending={isPending}
+            onEdit={() => setIsEditing(true)}
+            onCancel={handleCancel}
           />
-
-          <div className="grid lg:grid-cols-5 md:grid-cols-4 sm:grid-cols-3 grid-cols-2 gap-3">
-            {formData.logos.map((img, index) => (
-              <div
-                key={index}
-                className="relative aspect-square h-24 w-full border rounded-xl overflow-hidden group"
-              >
-                <Image fill src={img} alt="logo" className="object-contain" />
-                {isEditing && (
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    className="absolute inset-0 m-auto opacity-0 group-hover:opacity-100"
-                    type="button"
-                    onClick={() => handleRemoveImage(index)}
-                  >
-                    <BiTrash />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <File size={16} />
-            Selected files <Badge>{files.length}</Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <TextEditor
+              value={description}
+              onChange={setDescription}
+              editable={isEditing}
+            />
           </div>
         </CardContent>
       </Card>
-
-      {/* Upload modal unchanged */}
-      {isUpload && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4">
-          <Card className="relative w-full max-w-[580px]">
-            <button
-              type="button"
-              onClick={() => setIsUpload(false)}
-              className="absolute right-3 top-3 rounded-full p-1 hover:bg-gray-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <CardHeader>
-              <CardTitle>Upload Logos</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ChooseImageFiles files={files} setFiles={setFiles} />
-              <Button type="submit" disabled={isPending} className="w-full">
-                {isPending ? "Uploading..." : "Upload"}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </form>
   );
 };

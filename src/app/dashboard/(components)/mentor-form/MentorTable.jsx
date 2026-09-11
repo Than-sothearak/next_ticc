@@ -105,7 +105,8 @@ export function MentorTabe({ data, years }) {
                   <TableCell className="font-medium flex items-center gap-2">
                     <Avatar>
                       <AvatarImage
-                      alt="@shadcn"
+                        alt="@shadcn"
+                        className="object-cover"
                         src={
                           item?.image
                             ? item.image

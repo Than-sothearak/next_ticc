@@ -15,8 +15,12 @@ const s3Client = new S3Client({
 
 export async function uploadFileToS3(file) {
   try {
-    const fileName = `${Date.now()}-${file.name}`;
-    const fileType = file.type;
+    const fileType = file.type || "application/octet-stream";
+    const isPng = fileType === "image/png";
+    const isWebp = fileType === "image/webp";
+    const outputType = isPng ? "png" : isWebp ? "webp" : "jpeg";
+    const outputContentType = `image/${outputType}`;
+    const fileName = `${Date.now()}-${file.name.replace(/\.[^/.]+$/, `.${outputType}`)}`;
 
     // Convert file to Buffer
     const fileBuffer = Buffer.isBuffer(file)
@@ -24,31 +28,35 @@ export async function uploadFileToS3(file) {
       : Buffer.from(await file.arrayBuffer());
 
     let uploadBuffer = fileBuffer;
-    let contentType = fileType || "application/octet-stream";
+    let contentType = fileType;
 
     // Only compress/resize if it's an image
     if (fileType.startsWith("image/")) {
-      uploadBuffer = await sharp(fileBuffer)
-        .resize({ width: 1920 })
-        .jpeg({ quality: 100 })
-        .toBuffer();
+      const image = sharp(fileBuffer).resize({ width: 1920 });
+      uploadBuffer = await (isPng
+        ? image.png({ compressionLevel: 9 }).toBuffer()
+        : isWebp
+          ? image.webp({ quality: 100 }).toBuffer()
+          : image.jpeg({ quality: 100 }).toBuffer());
 
       // Ensure under 1MB
       const MAX_SIZE = 1 * 1024 * 1024; // 1MB
 
-      while (uploadBuffer.length > MAX_SIZE) {
-        uploadBuffer = await sharp(uploadBuffer)
-          .jpeg({
-            quality: Math.max(
-              10,
-              Math.floor((MAX_SIZE / uploadBuffer.length) * 90),
-            ),
-          })
-          .toBuffer();
+      while (uploadBuffer.length > MAX_SIZE && !isPng) {
+        const quality = Math.max(
+          10,
+          Math.floor((MAX_SIZE / uploadBuffer.length) * 90),
+        );
+        const image = sharp(uploadBuffer);
+        uploadBuffer = await (isPng
+          ? image.png({ compressionLevel: 9 }).toBuffer()
+          : isWebp
+            ? image.webp({ quality }).toBuffer()
+            : image.jpeg({ quality }).toBuffer());
       }
 
-      contentType = "image/jpeg";
-      console.log("Image has been converted under 1MB");
+      contentType = outputContentType;
+      console.log(`Image has been converted to ${outputType} under 1MB`);
     }
 
     const params = {

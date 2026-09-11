@@ -9,7 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 
-const createCroppedImage = (imageSrc, croppedAreaPixels, fileName) =>
+const createCroppedImage = (
+  imageSrc,
+  croppedAreaPixels,
+  fileName,
+  outputType,
+) =>
   new Promise((resolve, reject) => {
     const image = new window.Image();
     image.src = imageSrc;
@@ -34,8 +39,8 @@ const createCroppedImage = (imageSrc, croppedAreaPixels, fileName) =>
           reject(new Error("Could not crop image"));
           return;
         }
-        resolve(new File([blob], fileName, { type: "image/jpeg" }));
-      }, "image/jpeg", 0.92);
+        resolve(new File([blob], fileName, { type: outputType }));
+      }, outputType, outputType === "image/jpeg" ? 0.92 : undefined);
     };
     image.onerror = reject;
   });
@@ -46,12 +51,14 @@ export default function ChooseSingleImage({ file, setFile }) {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isCropping, setIsCropping] = useState(false);
+  const [sourceType, setSourceType] = useState("image/jpeg");
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
 
     setImageSrc(URL.createObjectURL(selectedFile));
+    setSourceType(selectedFile.type);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
     setIsCropping(true);
@@ -71,10 +78,15 @@ export default function ChooseSingleImage({ file, setFile }) {
   const handleCropSave = async () => {
     if (!imageSrc || !croppedAreaPixels) return;
 
+    const outputType = ["image/png", "image/webp"].includes(sourceType)
+      ? "image/png"
+      : "image/jpeg";
+    const fileExtension = outputType === "image/png" ? "png" : "jpg";
     const croppedFile = await createCroppedImage(
       imageSrc,
       croppedAreaPixels,
-      "mentor-image.jpg",
+      `mentor-image.${fileExtension}`,
+      outputType,
     );
     const preview = URL.createObjectURL(croppedFile);
     setFile({ file: croppedFile, preview });
